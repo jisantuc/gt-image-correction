@@ -1,0 +1,173 @@
+package gtic
+
+
+import scala.concurrent.{Future, ExecutionContext}
+
+import geotrellis.raster._
+import geotrellis.raster.render._
+import geotrellis.raster.io.geotiff.MultibandGeoTiff
+import geotrellis.vector.Extent
+
+import scala.math.{min, max, exp, pow, ceil, Pi}
+
+object ImageService {
+
+  // Load Data Eagerly
+
+  // val rgbTiff = MultibandGeoTiff("/opt/gt-image-correction/data/landsat-sample-wm-clipped.tif")
+  val rgbTiff = MultibandGeoTiff("/opt/gt-image-correction/data/full-combined-landsat-san-fran-wm.tif")
+  // constants
+
+
+  def clampTiff(z: Int, min: Int, max: Int) = {
+    if(isData(z)) { if(z > max) { max } else if(z < min) { min } else { z } }
+    else { z }
+  }
+
+  def clampColor(c: Int): Int = {
+    if (isNoData(c)) {
+      c
+    } else {
+      if (c < 0) { 0 }
+      else if (c > 255) { 255 }
+      else c
+    }
+  }
+
+  def adjustBrightness(v: Int, brightness: Int): Int = {
+    if (v > 0) { v + brightness }
+    else { v }
+  }
+
+  def adjustContrast(v: Int, contrast: Double): Int = {
+    val contrastFactor = (259 * (contrast + 255)) / (255 * (259 - contrast))
+    ((contrastFactor * (v - 128)) + 128).toInt
+  }
+
+  def gammaCorrect(v: Int, gamma: Double): Int = {
+    val gammaCorrection = 1 / gamma
+    (255 * math.pow(v / 255.0, gammaCorrection)).toInt
+  }
+
+  def adjustSigmoidal(v: Int, contrast: Double, bias: Double, scale: Int): Int = {
+    ((1 - 1 / (1 + exp(bias * (contrast - v / scale)))) * scale).toInt
+  }
+
+  def adjust(pixel: Int, contrast: Double, gamma: Double, brightness: Int,
+    sigmoidContrast: Double, sigmoidBias: Double, scale: Int): Int = {
+
+    if(isData(pixel)) {
+      var adjPixel = pixel
+      adjPixel = clampColor(adjustBrightness(adjPixel, brightness))
+      adjPixel = clampColor(gammaCorrect(adjPixel, gamma))
+      adjPixel = clampColor(adjustContrast(adjPixel, contrast))
+      // adjPixel = clampColor(adjustSigmoidal(adjPixel, sigmoidContrast, sigmoidBias, scale))
+      adjPixel
+    } else {
+      pixel
+    }
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////
+
+  val originShift = 20037508.342789244
+  val tileSize = 256
+  val initialResolution = 2 * Pi * 6378137 / tileSize
+
+  def getResolution(zoom: Integer) = {
+    initialResolution / pow(2, zoom.toDouble)
+  }
+
+  def pixelsToMeters(tileX: Integer, tileY: Integer, zoom: Integer):(Double, Double) = {
+    val resolution = getResolution(zoom)
+    val metersX = tileX * resolution - originShift
+    val metersY = tileY * resolution - originShift
+    (metersX, metersY)
+  }
+
+  def getTileExtent(tileX: Integer, tileY: Integer, zoom: Integer):Extent = {
+    val (xMin, yMin) = pixelsToMeters( tileX *  tileSize, tileY * tileSize, zoom )
+    val (xMax, yMax) = pixelsToMeters( (tileX + 1) * tileSize, (tileY + 1) * tileSize, zoom )
+    Extent(xMin, yMin, xMax, yMax)
+  }
+
+  def extractTile(r: Tile, g:GridBounds): Option[Tile] = {
+    println(s"BAND BOUNDS: ${r.gridBounds}")
+    println(s"TILEBOUNDS: ${g}")
+    r.gridBounds.intersects(g) match {
+      case true => Some(r.crop(g))
+      case _ => None
+    }
+  }
+  val redFull = rgbTiff.band(0)
+  val greenFull = rgbTiff.band(1)
+  val blueFull = rgbTiff.band(2)
+
+  // def getScale(t:Tile):(Int, Int)
+
+  def adjustTile(t:Tile, contrast:Double, gamma:Double, brightness:Int): Tile = {
+
+    val minmax = t.statistics match {
+      case Some(stats) => {
+        (stats.zmin, stats.zmax)
+      }
+      case _ => (0, 255)
+    }
+    val scale = minmax._2 - minmax._1
+
+    val sigmoidContrast = 3
+    val sigmoidBias = 0.5
+
+    t.map(pixel => adjust(pixel, contrast, gamma, brightness, sigmoidContrast, sigmoidBias, scale))
+  }
+
+  def renderTile(x:Int, y:Int, z:Int, imageParams: ImageParams)(implicit ec: ExecutionContext):Future[Option[Png]] = {
+    println(s"X: $x, Y: $y, Z: $z")
+
+    val z2 = 14
+    val x2 = 2603
+    val y2 = 10083
+
+    println(s"DIFFERENCES (X:${x-x2}) (Y:${y-y2}) (Z:${z-z2})")
+
+    val extent = getTileExtent(x, y, z)
+    val (minCol, minRow) = rgbTiff.rasterExtent.mapToGrid(extent.xmin, extent.ymin)
+    val (maxCol, maxRow) = rgbTiff.rasterExtent.mapToGrid(extent.xmax, extent.ymax)
+    val tileBounds = GridBounds(minCol, maxRow, maxCol, minRow)
+
+    val red = extractTile(redFull, tileBounds)
+    val green = extractTile(greenFull, tileBounds)
+    val blue = extractTile(blueFull, tileBounds)
+
+    val min = imageParams.min
+    val max = imageParams.max
+    val contrast = imageParams.contrast
+    val brightness = imageParams.brightness
+
+    (red, green, blue) match {
+      case (Some(r:Tile), Some(g:Tile), Some(b:Tile)) => {
+        val redTile = r.resample(256, 256).convert(IntCellType)
+          .map(pixel => clampTiff(pixel, min, max))
+          .normalize(min, max, 0, 255)
+        val greenTile = g.resample(256, 256).convert(IntCellType)
+          .map(pixel => clampTiff(pixel, min, max))
+          .normalize(min, max, 0, 255)
+        val blueTile = b.resample(256, 256).convert(IntCellType)
+          .map(pixel => clampTiff(pixel, min, max))
+          .normalize(min, max, 0, 255)
+
+        val adjRed = Future { adjustTile(redTile, contrast, imageParams.redGamma, brightness) }
+        val adjGreen = Future { adjustTile(greenTile, contrast, imageParams.greenGamma, brightness) }
+        val adjBlue = Future { adjustTile(blueTile, contrast, imageParams.blueGamma, brightness) }
+        val bands = Future.sequence(Seq(adjRed, adjGreen, adjBlue))
+
+        for {
+          r <- adjRed
+          g <- adjGreen
+          b <- adjBlue
+        } yield Some(ArrayMultibandTile(r, g, b).renderPng)
+      }
+      case _ => Future { None }
+    }
+  }
+}

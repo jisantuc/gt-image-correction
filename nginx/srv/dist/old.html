@@ -1,0 +1,49 @@
+<!-- begin template -->
+<div class="navbar navbar-custom navbar-fixed-top">
+  <div class="navbar-header navbar-brand">GeoTrellis Image Correction Demo</div>
+</div>
+
+<div class="container-fluid" id="main">
+  <div class="row">
+    <div class="col-xs-3" id="left">
+
+      <h2>GeoTrellis Image Correction Demo</h2>
+
+      <!-- <img src="http://earthexplorer.usgs.gov/browse/landsat_8/2016/154/075/LC81540752016214LGN00.jpg"></img> -->
+      <!-- item list -->
+      <div class="panel panel-default">
+        <div class="panel-heading">Gamma</div>
+      </div>
+      <label for="redGamma">Red:</label>
+      <input type="text" id="redGamma" readonly style="border:0; color:#f6931f; font-weight:bold;">
+      <div id="slider-redGamma"></div>
+
+      <label for="greenGamma">Green:</label>
+      <input type="text" id="greenGamma" readonly style="border:0; color:#f6931f; font-weight:bold;">
+      <div id="slider-greenGamma"></div>
+
+      <label for="blueGamma">Blue:</label>
+      <input type="text" id="blueGamma" readonly style="border:0; color:#f6931f; font-weight:bold;">
+      <div id="slider-blueGamma"></div>
+
+      <hr>
+
+      <div class="panel panel-default">
+        <div class="panel-heading">Brightness</div>
+      </div>
+      <label for="brightness">Current Brightness Value:</label>
+      <input type="text" id="brightness" readonly style="border:0; color:#f6931f; font-weight:bold;">
+      <div id="slider-brightness"></div>
+      <hr>
+
+      <div class="panel panel-default">
+        <div class="panel-heading">Contrast</div>
+      </div>
+      <label for="contrast">Current Contrast Value:</label>
+      <input type="text" id="contrast" readonly style="border:0; color:#f6931f; font-weight:bold;">
+      <div id="slider-contrast"></div>
+      <div class="panel panel-default">
+        <div class="panel-heading">Adjust min/max clipping</div>
+      </div>
+      <label for="minmax">Min/Max:</label>
+      <input type="text" id="minmax" readonly style="border:0; color:#f6931f; font-weight:bold;">

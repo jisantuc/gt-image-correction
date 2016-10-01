@@ -1,0 +1,56 @@
+.btn-images {
+    margin-right: 1rem;
+}
+
+.gamma-filter {
+    width: 100%;
+}
+
+.gamma-label {
+    min-width: 10%;
+}
+
+.no-border {
+    border-bottom: 0px;
+}
+
+.layer-list-label {
+    margin-right: 2rem;
+}
+
+.publish-map {
+    background: #738FFC;
+}
+
+.pip-label {
+    margin-top: -3rem;
+}
+
+.green-gamma {
+    margin-top: -.5rem;
+}
+
+.c3 path {
+    stroke: none;
+}
+.c3 line {
+    stroke: none;
+}
+
+.c3-line {
+    stroke-width: 5px;
+}
+
+.chart {
+    color: #7b8391;
+}
+
+.reset-button {
+    background-color: #FEC67C;
+}
+
+.c3 svg {
+    font-family: 'Titillium Web', sans-serif;
+    font-size: 1.2rem;
+    fill: #7b8391;
+}
